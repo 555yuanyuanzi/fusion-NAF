@@ -1,4 +1,4 @@
-# CUDA_VISIBLE_DEVICES=0 python -m basicsr.train -opt options/train/GoPro/NAFNet-width64-mccm-enc234-bs8-3e.yml --launcher none
+# CUDA_VISIBLE_DEVICES=0 nohup python -m basicsr.train -opt options/train/GoPro/NAFNet-width64-mccm-enc234-bs8-3e.yml --launcher none > logs/NAFNet-width64-mccm-enc234-bs8-3e.log 2>&1 &
 name: NAFNet-GoPro-width64-MCCM-enc234-bs8-3e
 model_type: ImageRestorationModel
 scale: 1

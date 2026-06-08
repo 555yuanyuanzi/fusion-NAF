@@ -1,3 +1,4 @@
+# CUDA_VISIBLE_DEVICES=0 nohup python -m basicsr.train -opt options/train/GoPro/NAFNet-width64.yml --launcher none > logs/NAFNet-width64.log 2>&1 &
 # ------------------------------------------------------------------------
 # Copyright (c) 2022 megvii-model. All Rights Reserved.
 # ------------------------------------------------------------------------

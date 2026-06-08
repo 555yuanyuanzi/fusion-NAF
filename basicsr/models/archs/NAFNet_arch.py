@@ -24,6 +24,7 @@ from basicsr.models.dfpb_fusion import (
 )
 from basicsr.models.dfpb_fusion_1 import DualFrequencySkipFusionGated
 from basicsr.models.dfpb_fusion_no_deform import DualFrequencySkipFusionNoDeform
+from basicsr.models.bamm import BlurAwareModulation
 from basicsr.models.mccm import MultiScaleContextCalibration
 
 DFPB_SKIP_FUSION_REGISTRY = {
@@ -109,6 +110,9 @@ class NAFNet(nn.Module):
         use_mccm=False,
         mccm_stages=None,
         mccm_kwargs=None,
+        use_bamm=False,
+        bamm_stages=None,
+        bamm_kwargs=None,
     ):
         super().__init__()
 
@@ -123,9 +127,11 @@ class NAFNet(nn.Module):
         self.ups = nn.ModuleList()
         self.downs = nn.ModuleList()
         self.dfpb_skip_fusion_modules = nn.ModuleDict()
+        self.bamm_modules = nn.ModuleDict()
         self.mccm_modules = nn.ModuleDict()
 
         raw_dfpb_skip_fusion_stages = set(dfpb_skip_fusion_stages or [])
+        raw_bamm_stages = set(bamm_stages or [])
         raw_mccm_stages = set(mccm_stages or [])
 
         def normalize_skip_fusion_stage(stage_name):
@@ -157,6 +163,32 @@ class NAFNet(nn.Module):
         dfpb_skip_fusion_stage_kwargs = {
             normalize_skip_fusion_stage(stage_name): kwargs
             for stage_name, kwargs in dfpb_skip_fusion_stage_kwargs.items()
+        }
+
+        def normalize_bamm_stage(stage_name):
+            if not isinstance(stage_name, str):
+                raise ValueError(f"BAMM stage must be a string, got {stage_name}.")
+            if stage_name.startswith('enc'):
+                enc_idx = int(stage_name[3:])
+                if enc_idx < 1 or enc_idx > len(enc_blk_nums):
+                    raise ValueError(f"Encoder BAMM stage out of range: {stage_name}.")
+                return stage_name
+            if stage_name.startswith('dec'):
+                dec_idx = int(stage_name[3:])
+                if dec_idx < 1 or dec_idx > len(dec_blk_nums):
+                    raise ValueError(f"Decoder BAMM stage out of range: {stage_name}.")
+                return stage_name
+            raise ValueError(f"Unknown BAMM stage: {stage_name}.")
+
+        bamm_stages = {
+            normalize_bamm_stage(stage_name)
+            for stage_name in raw_bamm_stages
+        }
+        bamm_kwargs = {} if bamm_kwargs is None else dict(bamm_kwargs)
+        bamm_stage_kwargs = bamm_kwargs.pop('stage_kwargs', {})
+        bamm_stage_kwargs = {
+            normalize_bamm_stage(stage_name): kwargs
+            for stage_name, kwargs in bamm_stage_kwargs.items()
         }
 
         def normalize_mccm_stage(stage_name):
@@ -201,6 +233,15 @@ class NAFNet(nn.Module):
                     **kwargs,
                 )
 
+        def register_bamm(channels, stage_name):
+            if use_bamm and stage_name in bamm_stages:
+                kwargs = dict(bamm_kwargs)
+                kwargs.update(bamm_stage_kwargs.get(stage_name, {}))
+                self.bamm_modules[stage_name] = BlurAwareModulation(
+                    channels=channels,
+                    **kwargs,
+                )
+
         def register_mccm(channels, stage_name):
             if use_mccm and stage_name in mccm_stages:
                 kwargs = dict(mccm_kwargs)
@@ -218,6 +259,7 @@ class NAFNet(nn.Module):
                     *[NAFBlock(chan) for _ in range(num)]
                 )
             )
+            register_bamm(chan, stage_name)
             register_mccm(chan, stage_name)
             self.downs.append(
                 nn.Conv2d(chan, 2*chan, 2, 2)
@@ -239,6 +281,7 @@ class NAFNet(nn.Module):
             chan = chan // 2
             stage_name = f'dec{dec_idx}'
             register_dfpb_skip_fusion(chan, stage_name)
+            register_bamm(chan, stage_name)
             register_mccm(chan, stage_name)
             self.decoders.append(
                 nn.Sequential(
@@ -258,6 +301,7 @@ class NAFNet(nn.Module):
 
         for enc_idx, (encoder, down) in enumerate(zip(self.encoders, self.downs), start=1):
             x = encoder(x)
+            x = self._apply_bamm(f'enc{enc_idx}', x)
             x = self._apply_mccm(f'enc{enc_idx}', x)
             encs.append(x)
             x = down(x)
@@ -268,6 +312,7 @@ class NAFNet(nn.Module):
             x = up(x)
             x = self._fuse_skip(f'dec{dec_idx}', x, enc_skip)
             x = decoder(x)
+            x = self._apply_bamm(f'dec{dec_idx}', x)
             x = self._apply_mccm(f'dec{dec_idx}', x)
 
         x = self.ending(x)
@@ -279,6 +324,11 @@ class NAFNet(nn.Module):
         if stage_name in self.dfpb_skip_fusion_modules:
             return self.dfpb_skip_fusion_modules[stage_name](x_dec, x_skip)
         return x_dec + x_skip
+
+    def _apply_bamm(self, stage_name, x):
+        if stage_name in self.bamm_modules:
+            return self.bamm_modules[stage_name](x)
+        return x
 
     def _apply_mccm(self, stage_name, x):
         if stage_name in self.mccm_modules:

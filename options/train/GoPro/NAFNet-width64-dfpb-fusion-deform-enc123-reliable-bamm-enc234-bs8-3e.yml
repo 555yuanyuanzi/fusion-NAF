@@ -1,5 +1,5 @@
-# CUDA_VISIBLE_DEVICES=0 python -m basicsr.train -opt options/train/GoPro/NAFNet-width64-dfpb-fusion-deform-enc123-reliable-mccm-enc234-dec123-bs8-3e.yml --launcher none
-name: NAFNet-GoPro-width64-DFPBFusion-Deform-enc123-Reliable-MCCM-enc234-dec123-bs8-3e
+# CUDA_VISIBLE_DEVICES=0 nohup python -m basicsr.train -opt options/train/GoPro/NAFNet-width64-dfpb-fusion-deform-enc123-reliable-bamm-enc234-bs8-3e.yml --launcher none > logs/NAFNet-width64-dfpb-fusion-deform-enc123-reliable-bamm-enc234-bs8-3e.log 2>&1 &
+name: NAFNet-GoPro-width64-DFPBFusion-Deform-enc123-Reliable-BAMM-enc234-bs8-3e
 model_type: ImageRestorationModel
 scale: 1
 num_gpu: 1
@@ -55,15 +55,14 @@ network_g:
       low_blocks: 1
       branch_expand_ratio: 2
       use_deformable_fusion: true
-  use_mccm: true
-  mccm_stages: [enc2, enc3, enc4, dec1, dec2, dec3]
-  mccm_kwargs:
-    expand: 1
-    local_kernel_size: 3
-    context_kernel_size: 5
-    context_dilation: 2
-    gate_reduction: 4
-    use_channel_gate: true
+  use_bamm: true
+  bamm_stages: [enc2, enc3, enc4]
+  bamm_kwargs:
+    reduction: 4
+    branch_reduction: 4
+    kernel_size: 7
+    dilation: 2
+    use_spatial_gate: true
 
 path:
   pretrain_network_g: ~
