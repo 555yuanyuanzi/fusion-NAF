@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1120" viewBox="0 0 2000 1120">
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#263238"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#2266aa"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#2b7a4b"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#b64242"/>
+    </marker>
+    <style>
+      .bg { fill: #ffffff; }
+      .title { font-family: Arial, Helvetica, sans-serif; font-size: 42px; font-weight: 700; fill: #17232b; }
+      .subtitle { font-family: Arial, Helvetica, sans-serif; font-size: 22px; fill: #52636f; }
+      .section { font-family: Arial, Helvetica, sans-serif; font-size: 24px; font-weight: 700; fill: #2b3942; }
+      .label { font-family: Arial, Helvetica, sans-serif; font-size: 24px; font-weight: 700; fill: #17232b; text-anchor: middle; dominant-baseline: middle; }
+      .small { font-family: Arial, Helvetica, sans-serif; font-size: 18px; fill: #455a64; text-anchor: middle; dominant-baseline: middle; }
+      .tiny { font-family: Arial, Helvetica, sans-serif; font-size: 16px; fill: #60717c; text-anchor: middle; dominant-baseline: middle; }
+      .note { font-family: Arial, Helvetica, sans-serif; font-size: 21px; fill: #263238; }
+      .math { font-family: Consolas, "Courier New", monospace; font-size: 22px; fill: #263238; }
+      .box { rx: 10; ry: 10; stroke-width: 2.4; }
+      .input { fill: #eef4f7; stroke: #78909c; }
+      .norm { fill: #eaf3ff; stroke: #5c88bd; }
+      .proj { fill: #e8f0ff; stroke: #4f76aa; }
+      .concat { fill: #fff3d8; stroke: #c48a21; }
+      .align { fill: #f1edff; stroke: #7b65c8; }
+      .alignInner { fill: #fbfaff; stroke: #8b7bd6; }
+      .conf { fill: #eaf7ef; stroke: #4d9a64; }
+      .calib { fill: #fff0f0; stroke: #cc6666; }
+      .sum { fill: #f5f7f8; stroke: #607d8b; }
+      .token { fill: #ffffff; stroke: #78909c; }
+      .formulaBox { fill: #fbfcfd; stroke: #b0bec5; }
+      .arrow { fill: none; stroke: #263238; stroke-width: 3; marker-end: url(#arrow); }
+      .arrowBlue { fill: none; stroke: #2266aa; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .arrowGreen { fill: none; stroke: #2b7a4b; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .arrowRed { fill: none; stroke: #b64242; stroke-width: 3; marker-end: url(#arrowRed); }
+      .arrowThin { fill: none; stroke: #607d8b; stroke-width: 2.2; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 8 8; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="2000" height="1120"/>
+
+  <text class="title" x="70" y="68">DFPB Skip Fusion Structure</text>
+  <text class="subtitle" x="70" y="104">Structure summarized from basicsr/models/dfpb_fusion.py: deformable skip alignment with optional reliability calibration.</text>
+
+  <text class="section" x="70" y="153">A. Shared projection and conditioned deformable alignment</text>
+  <text class="section" x="70" y="728">B. Reliability branch and output residual fusion</text>
+
+  <!-- Inputs -->
+  <rect class="box input" x="70" y="200" width="130" height="58"/>
+  <text class="label" x="135" y="229">x_dec</text>
+  <rect class="box input" x="70" y="470" width="130" height="58"/>
+  <text class="label" x="135" y="499">x_skip</text>
+
+  <!-- Base residual sum -->
+  <rect class="box sum" x="305" y="323" width="100" height="70"/>
+  <text class="label" x="355" y="350">Add</text>
+  <text class="tiny" x="355" y="374">base</text>
+  <path class="arrowThin" d="M 200 229 H 245 V 358 H 305"/>
+  <path class="arrowThin" d="M 200 499 H 245 V 358 H 305"/>
+
+  <!-- Decoder projection path -->
+  <rect class="box norm" x="255" y="194" width="135" height="70"/>
+  <text class="label" x="322.5" y="218">LN2d</text>
+  <text class="tiny" x="322.5" y="242">channel norm</text>
+  <rect class="box proj" x="430" y="194" width="155" height="70"/>
+  <text class="label" x="507.5" y="218">1x1 Conv</text>
+  <text class="tiny" x="507.5" y="242">dec_proj</text>
+  <rect class="box token" x="630" y="204" width="105" height="50"/>
+  <text class="label" x="682.5" y="229">dec</text>
+  <path class="arrowBlue" d="M 200 229 H 255"/>
+  <path class="arrowBlue" d="M 390 229 H 430"/>
+  <path class="arrowBlue" d="M 585 229 H 630"/>
+
+  <!-- Skip projection path -->
+  <rect class="box norm" x="255" y="464" width="135" height="70"/>
+  <text class="label" x="322.5" y="488">LN2d</text>
+  <text class="tiny" x="322.5" y="512">channel norm</text>
+  <rect class="box proj" x="430" y="464" width="155" height="70"/>
+  <text class="label" x="507.5" y="488">1x1 Conv</text>
+  <text class="tiny" x="507.5" y="512">skip_proj</text>
+  <rect class="box token" x="630" y="474" width="105" height="50"/>
+  <text class="label" x="682.5" y="499">skip</text>
+  <path class="arrowBlue" d="M 200 499 H 255"/>
+  <path class="arrowBlue" d="M 390 499 H 430"/>
+  <path class="arrowBlue" d="M 585 499 H 630"/>
+
+  <!-- Condition concat -->
+  <rect class="box concat" x="815" y="318" width="160" height="92"/>
+  <text class="label" x="895" y="349">Concat</text>
+  <text class="tiny" x="895" y="376">cond = [dec, skip]</text>
+  <path class="arrowBlue" d="M 735 229 H 770 V 342 H 815"/>
+  <path class="arrowBlue" d="M 735 499 H 770 V 386 H 815"/>
+
+  <!-- Alignment module -->
+  <rect class="box align" x="1060" y="245" width="325" height="310"/>
+  <text class="label" x="1222.5" y="277">Conditioned</text>
+  <text class="label" x="1222.5" y="307">Deformable Alignment</text>
+  <rect class="box alignInner" x="1095" y="335" width="255" height="70"/>
+  <text class="label" x="1222.5" y="359">Offset/Mask Head</text>
+  <text class="tiny" x="1222.5" y="383">Conv or 1x1-GELU-3x3</text>
+  <rect class="box alignInner" x="1095" y="455" width="255" height="70"/>
+  <text class="label" x="1222.5" y="479">Deform Conv2d</text>
+  <text class="tiny" x="1222.5" y="503">groups=g, kernel=k</text>
+  <rect class="box token" x="1137" y="413" width="170" height="32"/>
+  <text class="tiny" x="1222" y="429">offset dP + mask m</text>
+  <path class="arrowBlue" d="M 975 364 H 1095"/>
+  <path class="arrowBlue" d="M 735 499 H 905 V 490 H 1095"/>
+  <path class="arrowThin" d="M 1222 405 V 413"/>
+  <path class="arrowThin" d="M 1222 445 V 455"/>
+  <text class="tiny" x="1222.5" y="538">fallback: regular Conv2d when DCN is unavailable</text>
+
+  <!-- Detail projection -->
+  <rect class="box proj" x="1450" y="455" width="165" height="70"/>
+  <text class="label" x="1532.5" y="479">1x1 Conv</text>
+  <text class="tiny" x="1532.5" y="503">out_proj</text>
+  <rect class="box token" x="1660" y="465" width="85" height="50"/>
+  <text class="label" x="1702.5" y="490">D</text>
+  <text class="tiny" x="1702.5" y="515">detail</text>
+  <path class="arrowBlue" d="M 1385 490 H 1450"/>
+  <path class="arrowBlue" d="M 1615 490 H 1660"/>
+
+  <!-- Confidence branch -->
+  <rect class="box conf" x="815" y="635" width="185" height="82"/>
+  <text class="label" x="907.5" y="661">Consistency</text>
+  <text class="tiny" x="907.5" y="687">r=mean_c |dec-skip|</text>
+  <rect class="box concat" x="1055" y="625" width="175" height="102"/>
+  <text class="label" x="1142.5" y="653">Concat</text>
+  <text class="tiny" x="1142.5" y="679">[dec, skip, r]</text>
+  <text class="tiny" x="1142.5" y="702">channels: 2C+1</text>
+  <rect class="box conf" x="1285" y="635" width="180" height="82"/>
+  <text class="label" x="1375" y="661">Conf Head</text>
+  <text class="tiny" x="1375" y="687">1x1, GELU, 3x3</text>
+  <rect class="box conf" x="1520" y="645" width="130" height="62"/>
+  <text class="label" x="1585" y="666">Sigmoid</text>
+  <text class="tiny" x="1585" y="690">C map</text>
+  <path class="arrowGreen" d="M 735 229 H 770 V 660 H 815"/>
+  <path class="arrowGreen" d="M 735 499 H 785 V 692 H 815"/>
+  <path class="arrowGreen" d="M 1000 676 H 1055"/>
+  <path class="arrowGreen" d="M 1230 676 H 1285"/>
+  <path class="arrowGreen" d="M 1465 676 H 1520"/>
+
+  <!-- Reliability calibration -->
+  <rect class="box calib" x="1690" y="620" width="235" height="124"/>
+  <text class="label" x="1807.5" y="649">Reliability</text>
+  <text class="label" x="1807.5" y="678">Calibration</text>
+  <text class="tiny" x="1807.5" y="708">C*D - s*(1-C)*x_skip</text>
+  <path class="arrowRed" d="M 1745 490 H 1770 V 620"/>
+  <path class="arrowGreen" d="M 1650 676 H 1690"/>
+  <path class="arrowRed dash" d="M 200 499 H 610 V 760 H 1807 V 744"/>
+  <text class="tiny" x="1550" y="783">raw skip for suppression</text>
+
+  <!-- Final residual fusion -->
+  <rect class="box sum" x="1760" y="318" width="95" height="70"/>
+  <text class="label" x="1807.5" y="345">Add</text>
+  <text class="tiny" x="1807.5" y="369">output</text>
+  <rect class="box token" x="1900" y="328" width="70" height="50"/>
+  <text class="label" x="1935" y="353">y</text>
+  <path class="arrowThin" d="M 405 358 H 1760"/>
+  <path class="arrowRed" d="M 1807 620 V 520 H 1735 V 405 H 1807 V 388"/>
+  <text class="tiny" x="1736" y="424">x gamma</text>
+  <path class="arrow" d="M 1855 353 H 1900"/>
+
+  <!-- Variant note -->
+  <rect class="box formulaBox" x="70" y="815" width="1855" height="235"/>
+  <text class="note" x="100" y="858">Forward equations used by the figure:</text>
+  <text class="math" x="100" y="900">base = x_dec + x_skip</text>
+  <text class="math" x="100" y="934">dec = dec_proj(LN2d(x_dec)),  skip = skip_proj(LN2d(x_skip))</text>
+  <text class="math" x="100" y="968">D = out_proj(Align(skip, concat(dec, skip)))</text>
+  <text class="math" x="100" y="1002">C = sigmoid(ConfHead(concat(dec, skip, mean_c(abs(dec - skip)))))</text>
+  <text class="math" x="100" y="1036">ReliableDeformSkipFusion: y = base + gamma * (C*D - s*(1-C)*x_skip)</text>
+  <text class="math" x="1010" y="900">DualFrequencySkipFusion:</text>
+  <text class="math" x="1010" y="934">y = base + gamma * D</text>
+  <text class="note" x="1010" y="984">Basic variant removes the confidence branch and uses the aligned detail directly.</text>
+</svg>

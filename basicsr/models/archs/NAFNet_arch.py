@@ -18,6 +18,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 from basicsr.models.archs.arch_util import LayerNorm2d
 from basicsr.models.archs.local_arch import Local_Base
+from basicsr.models.dfpb_fusion import (
+    DualFrequencySkipFusion as DualFrequencySkipFusionDeform,
+    ReliableDeformSkipFusion,
+)
+from basicsr.models.dfpb_fusion_1 import DualFrequencySkipFusionGated
+from basicsr.models.dfpb_fusion_no_deform import DualFrequencySkipFusionNoDeform
+from basicsr.models.mccm import MultiScaleContextCalibration
+
+DFPB_SKIP_FUSION_REGISTRY = {
+    'deform': DualFrequencySkipFusionDeform,
+    'reliable_deform': ReliableDeformSkipFusion,
+    'gated': DualFrequencySkipFusionGated,
+    'no_deform': DualFrequencySkipFusionNoDeform,
+}
 
 class SimpleGate(nn.Module):
     def forward(self, x):
@@ -82,7 +96,20 @@ class NAFBlock(nn.Module):
 
 class NAFNet(nn.Module):
 
-    def __init__(self, img_channel=3, width=16, middle_blk_num=1, enc_blk_nums=[], dec_blk_nums=[]):
+    def __init__(
+        self,
+        img_channel=3,
+        width=16,
+        middle_blk_num=1,
+        enc_blk_nums=[],
+        dec_blk_nums=[],
+        use_dfpb_skip_fusion=False,
+        dfpb_skip_fusion_kwargs=None,
+        dfpb_skip_fusion_stages=None,
+        use_mccm=False,
+        mccm_stages=None,
+        mccm_kwargs=None,
+    ):
         super().__init__()
 
         self.intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
@@ -95,14 +122,103 @@ class NAFNet(nn.Module):
         self.middle_blks = nn.ModuleList()
         self.ups = nn.ModuleList()
         self.downs = nn.ModuleList()
+        self.dfpb_skip_fusion_modules = nn.ModuleDict()
+        self.mccm_modules = nn.ModuleDict()
+
+        raw_dfpb_skip_fusion_stages = set(dfpb_skip_fusion_stages or [])
+        raw_mccm_stages = set(mccm_stages or [])
+
+        def normalize_skip_fusion_stage(stage_name):
+            if not isinstance(stage_name, str):
+                raise ValueError(f"Skip fusion stage must be a string, got {stage_name}.")
+            if stage_name.startswith('dec'):
+                dec_idx = int(stage_name[3:])
+                if dec_idx < 1 or dec_idx > len(dec_blk_nums):
+                    raise ValueError(f"Decoder skip fusion stage out of range: {stage_name}.")
+                return stage_name
+            if stage_name.startswith('enc'):
+                enc_idx = int(stage_name[3:])
+                if enc_idx < 1 or enc_idx > len(enc_blk_nums):
+                    raise ValueError(f"Encoder skip fusion stage out of range: {stage_name}.")
+                dec_idx = len(enc_blk_nums) - enc_idx + 1
+                if dec_idx < 1 or dec_idx > len(dec_blk_nums):
+                    raise ValueError(f"Encoder stage {stage_name} has no matching decoder stage.")
+                return f'dec{dec_idx}'
+            raise ValueError(f"Unknown skip fusion stage: {stage_name}.")
+
+        dfpb_skip_fusion_stages = {
+            normalize_skip_fusion_stage(stage_name)
+            for stage_name in raw_dfpb_skip_fusion_stages
+        }
+        dfpb_skip_fusion_kwargs = (
+            {} if dfpb_skip_fusion_kwargs is None else dict(dfpb_skip_fusion_kwargs)
+        )
+        dfpb_skip_fusion_stage_kwargs = dfpb_skip_fusion_kwargs.pop('stage_kwargs', {})
+        dfpb_skip_fusion_stage_kwargs = {
+            normalize_skip_fusion_stage(stage_name): kwargs
+            for stage_name, kwargs in dfpb_skip_fusion_stage_kwargs.items()
+        }
+
+        def normalize_mccm_stage(stage_name):
+            if not isinstance(stage_name, str):
+                raise ValueError(f"MCCM stage must be a string, got {stage_name}.")
+            if stage_name.startswith('enc'):
+                enc_idx = int(stage_name[3:])
+                if enc_idx < 1 or enc_idx > len(enc_blk_nums):
+                    raise ValueError(f"Encoder MCCM stage out of range: {stage_name}.")
+                return stage_name
+            if stage_name.startswith('dec'):
+                dec_idx = int(stage_name[3:])
+                if dec_idx < 1 or dec_idx > len(dec_blk_nums):
+                    raise ValueError(f"Decoder MCCM stage out of range: {stage_name}.")
+                return stage_name
+            raise ValueError(f"Unknown MCCM stage: {stage_name}.")
+
+        mccm_stages = {
+            normalize_mccm_stage(stage_name)
+            for stage_name in raw_mccm_stages
+        }
+        mccm_kwargs = {} if mccm_kwargs is None else dict(mccm_kwargs)
+        mccm_stage_kwargs = mccm_kwargs.pop('stage_kwargs', {})
+        mccm_stage_kwargs = {
+            normalize_mccm_stage(stage_name): kwargs
+            for stage_name, kwargs in mccm_stage_kwargs.items()
+        }
+
+        def register_dfpb_skip_fusion(channels, stage_name):
+            if use_dfpb_skip_fusion and stage_name in dfpb_skip_fusion_stages:
+                kwargs = dict(dfpb_skip_fusion_kwargs)
+                kwargs.update(dfpb_skip_fusion_stage_kwargs.get(stage_name, {}))
+                fusion_type = kwargs.pop('fusion_type', 'gated')
+                fusion_cls = DFPB_SKIP_FUSION_REGISTRY.get(fusion_type)
+                if fusion_cls is None:
+                    raise ValueError(
+                        f"Unknown fusion_type '{fusion_type}'. "
+                        f"Available: {list(DFPB_SKIP_FUSION_REGISTRY.keys())}"
+                    )
+                self.dfpb_skip_fusion_modules[stage_name] = fusion_cls(
+                    channels=channels,
+                    **kwargs,
+                )
+
+        def register_mccm(channels, stage_name):
+            if use_mccm and stage_name in mccm_stages:
+                kwargs = dict(mccm_kwargs)
+                kwargs.update(mccm_stage_kwargs.get(stage_name, {}))
+                self.mccm_modules[stage_name] = MultiScaleContextCalibration(
+                    channels=channels,
+                    **kwargs,
+                )
 
         chan = width
-        for num in enc_blk_nums:
+        for enc_idx, num in enumerate(enc_blk_nums, start=1):
+            stage_name = f'enc{enc_idx}'
             self.encoders.append(
                 nn.Sequential(
                     *[NAFBlock(chan) for _ in range(num)]
                 )
             )
+            register_mccm(chan, stage_name)
             self.downs.append(
                 nn.Conv2d(chan, 2*chan, 2, 2)
             )
@@ -113,7 +229,7 @@ class NAFNet(nn.Module):
                 *[NAFBlock(chan) for _ in range(middle_blk_num)]
             )
 
-        for num in dec_blk_nums:
+        for dec_idx, num in enumerate(dec_blk_nums, start=1):
             self.ups.append(
                 nn.Sequential(
                     nn.Conv2d(chan, chan * 2, 1, bias=False),
@@ -121,6 +237,9 @@ class NAFNet(nn.Module):
                 )
             )
             chan = chan // 2
+            stage_name = f'dec{dec_idx}'
+            register_dfpb_skip_fusion(chan, stage_name)
+            register_mccm(chan, stage_name)
             self.decoders.append(
                 nn.Sequential(
                     *[NAFBlock(chan) for _ in range(num)]
@@ -137,22 +256,34 @@ class NAFNet(nn.Module):
 
         encs = []
 
-        for encoder, down in zip(self.encoders, self.downs):
+        for enc_idx, (encoder, down) in enumerate(zip(self.encoders, self.downs), start=1):
             x = encoder(x)
+            x = self._apply_mccm(f'enc{enc_idx}', x)
             encs.append(x)
             x = down(x)
 
         x = self.middle_blks(x)
 
-        for decoder, up, enc_skip in zip(self.decoders, self.ups, encs[::-1]):
+        for dec_idx, (decoder, up, enc_skip) in enumerate(zip(self.decoders, self.ups, encs[::-1]), start=1):
             x = up(x)
-            x = x + enc_skip
+            x = self._fuse_skip(f'dec{dec_idx}', x, enc_skip)
             x = decoder(x)
+            x = self._apply_mccm(f'dec{dec_idx}', x)
 
         x = self.ending(x)
         x = x + inp
 
         return x[:, :, :H, :W]
+
+    def _fuse_skip(self, stage_name, x_dec, x_skip):
+        if stage_name in self.dfpb_skip_fusion_modules:
+            return self.dfpb_skip_fusion_modules[stage_name](x_dec, x_skip)
+        return x_dec + x_skip
+
+    def _apply_mccm(self, stage_name, x):
+        if stage_name in self.mccm_modules:
+            return self.mccm_modules[stage_name](x)
+        return x
 
     def check_image_size(self, x):
         _, _, h, w = x.size()

@@ -1,0 +1,107 @@
+# CUDA_VISIBLE_DEVICES=0 python -m basicsr.train -opt options/train/GoPro/NAFNet-width64-dfpb-fusion-deform-enc123-reliable-bs8-3e.yml --launcher none
+name: NAFNet-GoPro-width64-DFPBFusion-Deform-enc123-Reliable-bs8-3e
+model_type: ImageRestorationModel
+scale: 1
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  train:
+    name: gopro-train
+    type: PairedImageDataset
+    dataroot_gt: /workspace/polarv1/data/gopro_v1/flat/train/sharp_crops.lmdb
+    dataroot_lq: /workspace/polarv1/data/gopro_v1/flat/train/blur_crops.lmdb
+
+    filename_tmpl: '{}'
+    io_backend:
+      type: lmdb
+
+    gt_size: 256
+    use_flip: true
+    use_rot: true
+
+    use_shuffle: true
+    num_worker_per_gpu: 4
+    batch_size_per_gpu: 8
+    dataset_enlarge_ratio: 1
+    prefetch_mode: ~
+
+  val:
+    name: gopro-test
+    type: PairedImageDataset
+    dataroot_gt: /workspace/polarv1/data/gopro_v1/flat/test/sharp
+    dataroot_lq: /workspace/polarv1/data/gopro_v1/flat/test/blur
+    io_backend:
+      type: disk
+    batch_size_per_gpu: 1
+    num_worker_per_gpu: 4
+
+network_g:
+  type: NAFNetLocal
+  width: 64
+  enc_blk_nums: [1, 1, 1, 28]
+  middle_blk_num: 1
+  dec_blk_nums: [1, 1, 1, 1]
+  use_dfpb_skip_fusion: true
+  dfpb_skip_fusion_stages: [enc1, enc2, enc3]
+  dfpb_skip_fusion_kwargs:
+    fusion_type: reliable_deform
+    block_type: wavelet
+    reduction: 4
+    confidence_reduction: 4
+    confidence_init: 2.0
+    suppress_scale: 0.2
+    dfpb_kwargs:
+      low_blocks: 1
+      branch_expand_ratio: 2
+      use_deformable_fusion: true
+
+path:
+  pretrain_network_g: ~
+  strict_load_g: true
+  resume_state: ~
+
+train:
+  optim_g:
+    type: AdamW
+    lr: !!float 3e-4
+    weight_decay: !!float 1e-3
+    betas: [0.9, 0.9]
+
+  scheduler:
+    type: TrueCosineAnnealingLR
+    T_max: 400000
+    eta_min: !!float 1e-7
+
+  total_iter: 400000
+  warmup_iter: -1
+
+  pixel_opt:
+    type: PSNRLoss
+    loss_weight: 1
+    reduction: mean
+
+val:
+  val_freq: !!float 2e4
+  save_img: false
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    ssim:
+      type: calculate_ssim
+      crop_border: 0
+      test_y_channel: false
+
+logger:
+  print_freq: 200
+  save_checkpoint_freq: !!float 5e4
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+dist_params:
+  backend: nccl
+  port: 29500
